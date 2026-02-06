@@ -10,29 +10,29 @@ macro(conditionally_fetch_dependencies)
     if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/dlib)
         message("Using existing dlib clone")
     else()
-        execute_process(COMMAND wget https://github.com/davisking/dlib/archive/refs/tags/v19.24.6.zip)
-        execute_process(COMMAND unzip -o v19.24.6.zip)
+        execute_process(COMMAND wget -q https://github.com/davisking/dlib/archive/refs/tags/v19.24.6.zip)
+        execute_process(COMMAND unzip -qq -o v19.24.6.zip)
         execute_process(COMMAND mv dlib-19.24.6 dlib)
     endif()
 
     if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/gcem)
         message("Using existing gcem clone")
     else()
-        execute_process(COMMAND wget https://github.com/kthohr/gcem/archive/refs/tags/v1.18.0.zip)
-        execute_process(COMMAND unzip -o v1.18.0.zip)
+        execute_process(COMMAND wget -q https://github.com/kthohr/gcem/archive/refs/tags/v1.18.0.zip)
+        execute_process(COMMAND unzip -qq -o v1.18.0.zip)
         execute_process(COMMAND mv gcem-1.18.0 gcem)
     endif()
 
     if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/miniz)
         message("Using existing miniz download")
     else()
-        execute_process(COMMAND wget https://github.com/richgel999/miniz/releases/download/3.1.0/miniz-3.1.0.zip)
-        execute_process(COMMAND unzip -o miniz-3.1.0 -d miniz)
+        execute_process(COMMAND wget -q https://github.com/richgel999/miniz/releases/download/3.1.0/miniz-3.1.0.zip)
+        execute_process(COMMAND unzip -qq -o miniz-3.1.0 -d miniz)
     endif()
 
-    include_directories(${CMAKE_CURRENT_BINARY_DIR}/dlib)
-    include_directories(${CMAKE_CURRENT_BINARY_DIR}/gcem/include)
-    include_directories(${CMAKE_CURRENT_BINARY_DIR})
+    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/dlib)
+    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/gcem/include)
+    include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR}/miniz)
 
 endmacro()
 
@@ -67,11 +67,9 @@ elseif(MAKESYCL)
     target_link_libraries(LightwaveExplorerSYCL
         ${MKL_ROOT}/lib/mkl_sycl.lib
         ${MKL_ROOT}/lib/mkl_intel_ilp64.lib
-        ${MKL_ROOT}/lib/mkl_tbb_thread.lib
+        ${MKL_ROOT}/lib/mkl_sequential.lib
         ${MKL_ROOT}/lib/mkl_core.lib
-        ${MKL_ROOT}/../../compiler/latest/lib/libiomp5md.lib
         sycl8.lib OpenCL.lib)
-    target_link_libraries(LightwaveExplorerSYCL TBB::tbb)
 else()
     #cmake --fresh .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_CUDA_ARCHITECTURES="75;86"
     #cmake --build . --config Release
@@ -103,20 +101,10 @@ else()
         PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>
     )
     target_link_libraries(LightwaveExplorer Qt6::Widgets Qt6::DBus)
-    if(USEFFTW)
-        target_link_libraries(LightwaveExplorer ${FFTW_LIBRARIES} ${FFTWF_LIBRARIES})
-    else()
-        target_link_libraries(LightwaveExplorer
-            ${MKL_ROOT}/lib/mkl_intel_ilp64.lib
-            ${MKL_ROOT}/lib/mkl_intel_thread.lib
-            ${MKL_ROOT}/lib/mkl_core.lib
-            ${MKL_ROOT}/../../compiler/latest/lib/libiomp5md.lib)
-    endif()
     target_link_libraries(LightwaveExplorer ${CAIRO_LIBRARIES})
     target_link_libraries(LightwaveExplorer ${CMAKE_CURRENT_BINARY_DIR}/Release/LightwaveExplorerDependencies.lib)
     target_link_libraries(LightwaveExplorer ${CMAKE_CURRENT_BINARY_DIR}/Release/miniz.lib)
-    target_link_libraries(LightwaveExplorer CUDA::cudart CUDA::cufft CUDA::nvml)
-    target_link_options(LightwaveExplorer PRIVATE "/DELAYLOAD:nvml.dll")
+    target_link_libraries(LightwaveExplorer CUDA::cudart CUDA::cufft)
     target_link_libraries(LightwaveExplorer DelayImp.lib ${OpenMP_CXX_LIBRARIES})
     target_link_libraries(LightwaveExplorer ${CMAKE_CURRENT_BINARY_DIR}/Release/LightwaveExplorerSYCL.lib)
     target_link_options(LightwaveExplorer PRIVATE "/DELAYLOAD:LightwaveExplorerSYCL.dll")
@@ -129,9 +117,9 @@ else()
     copy_after_build(LightwaveExplorer ${CMAKE_SOURCE_DIR}/CrystalDatabase.txt)
     copy_after_build(LightwaveExplorer ${CMAKE_SOURCE_DIR}/Source/BuildResources/DefaultValues.ini)
     copy_after_build(LightwaveExplorer ${CMAKE_SOURCE_DIR}/Source/BuildResources/Licenses.txt)
-    copy_after_build(LightwaveExplorer ${MKL_ROOT}/../../compiler/latest/bin/libiomp5md.dll)
+
     #Include CUDA dlls, whatver their current number is
-    file(GLOB CUFFT_DLLS "${CUDAToolkit_BIN_DIR}/cufft64*.dll")
+    file(GLOB CUFFT_DLLS "${CUDAToolkit_BIN_DIR}/x64/cufft64*.dll")
     foreach(CUFFT_DLL ${CUFFT_DLLS})
         add_custom_command(TARGET LightwaveExplorer POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -139,7 +127,7 @@ else()
             $<TARGET_FILE_DIR:LightwaveExplorer>
         )
     endforeach()
-    file(GLOB CUDART_DLLS "${CUDAToolkit_BIN_DIR}/cudart64*.dll")
+    file(GLOB CUDART_DLLS "${CUDAToolkit_BIN_DIR}/x64/cudart64*.dll")
     foreach(CUDART_DLL ${CUDART_DLLS})
         add_custom_command(TARGET LightwaveExplorer POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different

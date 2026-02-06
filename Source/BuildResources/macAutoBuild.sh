@@ -1,30 +1,31 @@
-brew install cmake ninja make pkgconfig libomp qt cairo fmt wget
+brew install cmake make pkgconfig qt cairo wget
 mkdir LightwaveExplorerBuild
 cd LightwaveExplorerBuild
-BASE_DIR=$(pwd)
-echo "Building fftw..."
-curl -O http://fftw.org/fftw-3.3.10.tar.gz >& /dev/null
-tar -xvf fftw-3.3.10.tar.gz >& /dev/null
-cd fftw-3.3.10 
-curl -O https://raw.githubusercontent.com/andrej5elin/howto_fftw_apple_silicon/main/fftw-3-3-10-configure-diff.txt >& /dev/null
-patch configure fftw-3-3-10-configure-diff.txt >& /dev/null
-
-./configure --enable-threads --enable-neon --enable-armv8-cntvct-el0 --enable-silent-rules >& /dev/null
-make >& /dev/null
-make DESTDIR=$BASE_DIR/fftw install >& /dev/null
-
-./configure --enable-threads --enable-neon --enable-armv8-cntvct-el0 --enable-float --enable-silent-rules >& /dev/null
-make clean >& /dev/null
-make >& /dev/null
-make DESTDIR=$BASE_DIR/fftw install >& /dev/null
-
-cd ..
-rm -rf fftw-3.3.10
-
-git clone --depth 1 https://github.com/NickKarpowicz/LightwaveExplorer >& /dev/null
-git clone --depth 1 --branch v19.24.2 https://github.com/davisking/dlib >& /dev/null
-
-
+if [ -n "$1" ]; then
+    git clone --depth 1 --branch "$1" https://github.com/NickKarpowicz/LightwaveExplorer
+else
+    git clone --depth 1 https://github.com/NickKarpowicz/LightwaveExplorer
+fi
 cd LightwaveExplorer
-./Source/BuildResources/makeMacAppQt.sh
-cp -r build/LightwaveExplorer.app /Applications/
+
+BIN=LightwaveExplorer
+APP=build/${BIN}.app
+BINPATH=${APP}/Contents/MacOS/${BIN}
+
+#build executable
+mkdir build
+cd build
+cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion) -DCMAKE_CXX_FLAGS="-O3 -march=native" ..
+make
+cd ..
+
+#copy in the databases and icons
+mkdir $APP/Contents/Resources/
+cp CrystalDatabase.txt $APP/Contents/Resources
+cp Source/BuildResources/DefaultValues.ini $APP/Contents/Resources
+cp Source/BuildResources/Licenses.txt $APP/Contents/Resources
+cp Source/BuildResources/AppIcon.icns $APP/Contents/Resources
+
+cp -r $APP /Applications/
+cd ../..
+rm -rf LightwaveExplorerBuild
