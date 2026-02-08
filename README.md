@@ -9,6 +9,7 @@ Publication!
 - N. Karpowicz, Open source, heterogenous, nonlinear-optics simulation. [*Optics Continuum* **2**, 2244-2254 (2023).](https://opg.optica.org/optcon/fulltext.cfm?uri=optcon-2-11-2244&id=540999)
 
 Tutorials on YouTube!
+- <a href="https://youtu.be/JY4wm2e7y_M">Explanation of the new beam modes in version 2026.1</a>
 - <a href="https://youtu.be/sZ5Evkgj4Vk">Introduction, main tutorial (2026 update!)</a>
 - <a href="https://youtu.be/qlcy_RBLGoU">Adding a crystal to the database</a>
 - <a href="https://youtu.be/v5O0UOUdfKE">Birefringence</a>
