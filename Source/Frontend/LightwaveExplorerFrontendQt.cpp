@@ -512,6 +512,8 @@ public:
         setToInt64(textBoxes["batch1steps"],sim.base().Nsims);
         setToInt64(textBoxes["batch2steps"],sim.base().Nsims2);
         setToInt64(textBoxes["offload"],sim.base().NsimsCPU);
+        setToInt64(textBoxes["batchThreads"],sim.base().NsimsThreads);
+        if (sim.base().NsimsThreads < 1) sim.base().NsimsThreads = 1;
 
         sim.base().isInSequence = false;
         sim.base().sequenceString = sequence->toPlainText().toStdString();
@@ -777,6 +779,7 @@ public:
         setToDouble(textBoxes["batch2end"],sim.base().batchDestination2);
         setToInt(textBoxes["batch1steps"],sim.base().Nsims);
         setToInt(textBoxes["batch2steps"],sim.base().Nsims2);
+        setToInt(textBoxes["batchThreads"],sim.base().NsimsThreads);
 
         std::string formattedFit=sim.base().fittingString;
         insertAfterCharacter(formattedFit,';',std::string("\n"));
@@ -1314,6 +1317,24 @@ public:
         "These give the number of steps to be done in the batch scan. For example, if\n"
         "frequency is scanned from 200 to 300 THz, a value of 11 will perform simulations at:\n"
         "200, 210, 220, ..., 290, 300.");
+
+        {
+            QHBoxLayout* batchThreadsRow = getRowBoxLayout(entryColumn2Layout);
+            QLabel* batchThreadsLabel = new QLabel("Batch threads");
+            batchThreadsLabel->setFixedWidth(labelWidth);
+            batchThreadsRow->addWidget(batchThreadsLabel);
+            textBoxes["batchThreads"] = new QLineEdit;
+            textBoxes["batchThreads"]->setFixedSize(textBoxWidth, textBoxHeight);
+            textBoxes["batchThreads"]->setText("1");
+            textBoxes["batchThreads"]->setToolTip(
+                "Maximum number of batch simulations to run in parallel.\n"
+                "Default is 1 (sequential execution, original behavior).\n"
+                "Higher values can speed up batch runs by overlapping\n"
+                "GPU compute and data transfer between simulations.\n"
+                "Recommended: 2-4 for a single GPU.");
+            batchThreadsLabel->setToolTip(textBoxes["batchThreads"]->toolTip());
+            batchThreadsRow->addWidget(textBoxes["batchThreads"]);
+        }
 
         QHBoxLayout* loadRow = getRowBoxLayout(entryColumn2Layout);
         buttons["load"] = new QPushButton("Load");
@@ -2427,58 +2448,96 @@ void mainSimThread(LWEGui& theGui, simulationRun theRun, simulationRun theOffloa
     };
     std::thread advanceProgressBar(progressThread);
     advanceProgressBar.detach();
-    auto batchLoop = [&](const int startSim, const int stopSim, const simulationRun& activeRun){
-        for (int j = startSim; j < stopSim; ++j) {
-            theSim.sCPU()[j].runningOnCPU = activeRun.forceCPU;
-            theSim.sCPU()[j].assignedGPU = activeRun.assignedGPU;
-            theSim.sCPU()[j].useOpenMP = activeRun.useOpenMP;
-            std::unique_lock lock(theSim.mutexes.at(j));
-                try {
-                    if(theSim.base().isInSequence){
-                        error = activeRun.sequenceFunction(&theSim.sCPU()[j]);
-                    }
-                    else{
-                        error = activeRun.normalFunction(&theSim.sCPU()[j]);
-                    }
+    auto runOneSim = [&](const int j, const simulationRun& activeRun, std::atomic_int* errorFlag){
+        theSim.sCPU()[j].runningOnCPU = activeRun.forceCPU;
+        theSim.sCPU()[j].assignedGPU = activeRun.assignedGPU;
+        theSim.sCPU()[j].useOpenMP = activeRun.useOpenMP;
+        std::unique_lock lock(theSim.mutexes.at(j));
+            try {
+                int localError = 0;
+                if(theSim.base().isInSequence){
+                    localError = activeRun.sequenceFunction(&theSim.sCPU()[j]);
                 }
-                catch (std::exception const& e) {
-                    std::string errorString=e.what();
-                    std::erase(errorString,'<');
-                    std::erase(errorString,'>');
-                    std::erase(errorString,'&');
-                    std::erase(errorString,';');
-                    std::erase(errorString,'{');
-                    std::erase(errorString,'}');
-                    theGui.messenger->passString(
-                        std::format("Simulation failed with exception:\n{}\n",
-                        errorString));
+                else{
+                    localError = activeRun.normalFunction(&theSim.sCPU()[j]);
                 }
-                if (theSim.sCPU()[j].memoryError != 0) {
-                    if (theSim.sCPU()[j].memoryError == -1) {
-                        theGui.messenger->passString(
-                        std::format(
-                            "Not enough free GPU memory, sorry.\n",
-                            theSim.sCPU()[j].memoryError));
-                    }
-                    else {
-                        theGui.messenger->passString(
-                        std::format(
-                            "<span color=\"#FF88FF\">Warning: device memory error ({}).</span>\n",
-                            theSim.sCPU()[j].memoryError));
-                    }
-                }
-                if (error) break;
-                theGui.messenger->passSliderPosition(j);
-                theGui.messenger->requestUpdate();
-
-            if (theSim.base().cancellationCalled) {
-                theGui.messenger->passString(std::format((
-                    "Warning: series cancelled, stopping\n"
-                    "after {} simulations.\n"), j + 1));
-                break;
+                if (localError) errorFlag->store(localError);
             }
-            theGui.progressCounter += 1;
+            catch (std::exception const& e) {
+                std::string errorString=e.what();
+                std::erase(errorString,'<');
+                std::erase(errorString,'>');
+                std::erase(errorString,'&');
+                std::erase(errorString,';');
+                std::erase(errorString,'{');
+                std::erase(errorString,'}');
+                theGui.messenger->passString(
+                    std::format("Simulation failed with exception:\n{}\n",
+                    errorString));
+            }
+            if (theSim.sCPU()[j].memoryError != 0) {
+                if (theSim.sCPU()[j].memoryError == -1) {
+                    theGui.messenger->passString(
+                        "Not enough free GPU memory, sorry.\n"
+                        "Try reducing the number of batch threads.\n");
+                    errorFlag->store(-1);
+                }
+                else {
+                    theGui.messenger->passString(
+                    std::format(
+                        "<span color=\"#FF88FF\">Warning: device memory error ({}).</span>\n",
+                        theSim.sCPU()[j].memoryError));
+                    errorFlag->store(theSim.sCPU()[j].memoryError);
+                }
+            }
+            theGui.messenger->passSliderPosition(j);
+            theGui.messenger->requestUpdate();
+
+        theGui.progressCounter += 1;
+    };
+
+    auto batchLoop = [&](const int startSim, const int stopSim, const simulationRun& activeRun){
+        std::atomic_int errorFlag{0};
+        int64_t maxThreads = theSim.base().NsimsThreads;
+        int totalJobs = stopSim - startSim;
+
+        if (maxThreads <= 1) {
+            // Sequential mode (original behavior)
+            for (int j = startSim; j < stopSim; ++j) {
+                runOneSim(j, activeRun, &errorFlag);
+                if (errorFlag.load() || theSim.base().cancellationCalled) {
+                    theGui.messenger->passString(std::format((
+                        "Warning: series cancelled, stopping\n"
+                        "after {} simulations.\n"), j - startSim + 1));
+                    break;
+                }
+            }
         }
+        else {
+            // Parallel mode: use worker threads with atomic job counter
+            std::atomic_int nextJob{startSim};
+            auto worker = [&]() {
+                while (true) {
+                    int j = nextJob.fetch_add(1);
+                    if (j >= stopSim || errorFlag.load() || theSim.base().cancellationCalled) return;
+                    runOneSim(j, activeRun, &errorFlag);
+                }
+            };
+
+            int64_t nWorkers = (std::min)(maxThreads, static_cast<int64_t>(totalJobs));
+            std::vector<std::thread> workers;
+            workers.reserve(nWorkers);
+            for (int64_t t = 0; t < nWorkers; ++t) {
+                workers.emplace_back(worker);
+            }
+            for (auto& w : workers) {
+                w.join();
+            }
+            if (theSim.base().cancellationCalled) {
+                theGui.messenger->passString("Warning: series cancelled.\n");
+            }
+        }
+        error = errorFlag.load();
     };
     if(theSim.base().NsimsCPU){
         std::thread offloadThread(batchLoop,
