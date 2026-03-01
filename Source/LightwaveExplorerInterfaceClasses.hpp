@@ -137,7 +137,7 @@ public:
     int64_t Nsims2 = 0;
     std::atomic_uint32_t* progressCounter = 0;
     int64_t NsimsCPU = 0;
-    int64_t NsimsThreads = 1; // max concurrent batch threads (1 = sequential)
+    int64_t NsimsStreams = 1; // max concurrent batch streams (1 = sequential)
     Pulse<double> pulse1;
     Pulse<double> pulse2;
     double spatialWidth = 0;

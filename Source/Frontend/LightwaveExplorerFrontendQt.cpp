@@ -512,8 +512,8 @@ public:
         setToInt64(textBoxes["batch1steps"],sim.base().Nsims);
         setToInt64(textBoxes["batch2steps"],sim.base().Nsims2);
         setToInt64(textBoxes["offload"],sim.base().NsimsCPU);
-        setToInt64(textBoxes["batchThreads"],sim.base().NsimsThreads);
-        if (sim.base().NsimsThreads < 1) sim.base().NsimsThreads = 1;
+        setToInt64(textBoxes["batchThreads"],sim.base().NsimsStreams);
+        if (sim.base().NsimsStreams < 1) sim.base().NsimsStreams = 1;
 
         sim.base().isInSequence = false;
         sim.base().sequenceString = sequence->toPlainText().toStdString();
@@ -779,7 +779,7 @@ public:
         setToDouble(textBoxes["batch2end"],sim.base().batchDestination2);
         setToInt(textBoxes["batch1steps"],sim.base().Nsims);
         setToInt(textBoxes["batch2steps"],sim.base().Nsims2);
-        setToInt(textBoxes["batchThreads"],sim.base().NsimsThreads);
+        setToInt(textBoxes["batchThreads"],sim.base().NsimsStreams);
 
         std::string formattedFit=sim.base().fittingString;
         insertAfterCharacter(formattedFit,';',std::string("\n"));
@@ -1320,14 +1320,14 @@ public:
 
         {
             QHBoxLayout* batchThreadsRow = getRowBoxLayout(entryColumn2Layout);
-            QLabel* batchThreadsLabel = new QLabel("Batch threads");
+            QLabel* batchThreadsLabel = new QLabel("Batch streams");
             batchThreadsLabel->setFixedWidth(labelWidth);
             batchThreadsRow->addWidget(batchThreadsLabel);
             textBoxes["batchThreads"] = new QLineEdit;
             textBoxes["batchThreads"]->setFixedSize(textBoxWidth, textBoxHeight);
             textBoxes["batchThreads"]->setText("1");
             textBoxes["batchThreads"]->setToolTip(
-                "Number of batch simulations to run in parallel.\n"
+                "Number of concurrent CUDA streams to run batches in parallel.\n"
                 "Default 1 (sequential). Recommended: 2-4 for single GPU.");
             batchThreadsLabel->setToolTip(textBoxes["batchThreads"]->toolTip());
             batchThreadsRow->addWidget(textBoxes["batchThreads"]);
@@ -2477,7 +2477,7 @@ void mainSimThread(LWEGui& theGui, simulationRun theRun, simulationRun theOffloa
                 if (theSim.sCPU()[j].memoryError == -1) {
                     theGui.messenger->passString(
                         "Not enough free GPU memory, sorry.\n"
-                        "Try reducing the number of batch threads.\n");
+                        "Try reducing the number of batch streams.\n");
                     errorFlag->store(-1);
                 }
                 else {
@@ -2496,10 +2496,10 @@ void mainSimThread(LWEGui& theGui, simulationRun theRun, simulationRun theOffloa
 
     auto batchLoop = [&](const int startSim, const int stopSim, const simulationRun& activeRun){
         std::atomic_int errorFlag{0};
-        int64_t maxThreads = theSim.base().NsimsThreads;
+        int64_t maxStreams = theSim.base().NsimsStreams;
         int totalJobs = stopSim - startSim;
 
-        if (maxThreads <= 1) {
+        if (maxStreams <= 1) {
             // Sequential mode (original behavior)
             for (int j = startSim; j < stopSim; ++j) {
                 runOneSim(j, activeRun, &errorFlag);
@@ -2522,7 +2522,7 @@ void mainSimThread(LWEGui& theGui, simulationRun theRun, simulationRun theOffloa
                 }
             };
 
-            int64_t nWorkers = (std::min)(maxThreads, static_cast<int64_t>(totalJobs));
+            int64_t nWorkers = (std::min)(maxStreams, static_cast<int64_t>(totalJobs));
             std::vector<std::thread> workers;
             workers.reserve(nWorkers);
             for (int64_t t = 0; t < nWorkers; ++t) {

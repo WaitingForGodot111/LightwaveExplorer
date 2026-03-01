@@ -451,7 +451,7 @@ std::string simulationParameterSet::settingsString() {
   fs << "Batch mode 2: " << batchIndex2 << '\x0A';
   fs << "Batch destination 2: " << batchDestination2 << '\x0A';
   fs << "Batch steps 2: " << Nsims2 << '\x0A';
-  fs << "Batch threads: " << NsimsThreads << '\x0A';
+  fs << "Batch streams: " << NsimsStreams << '\x0A';
   fs << "Sequence: " << sequenceString << '\x0A';
   fs << "Fitting: " << fittingString << '\x0A';
   fs << "Fitting mode: " << fittingMode << '\x0A';
@@ -759,8 +759,8 @@ int simulationParameterSet::readInputParametersFile(
   batchIndex2 = find_label_get_double("Batch mode 2", 0.0);
   batchDestination2 = find_label_get_double("Batch destination 2", 0.0);
   Nsims2 = find_label_get_double("Batch steps 2", 0.0);
-  NsimsThreads = static_cast<int64_t>(find_label_get_double("Batch threads", 1.0));
-  if (NsimsThreads < 1) NsimsThreads = 1;
+  NsimsStreams = static_cast<int64_t>(find_label_get_double("Batch streams", 1.0));
+  if (NsimsStreams < 1) NsimsStreams = 1;
 
   sequenceString = find_label_get_string("Sequence");
   fittingString = find_label_get_string("Fitting");
