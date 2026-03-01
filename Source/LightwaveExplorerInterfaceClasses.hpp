@@ -216,6 +216,7 @@ public:
     int64_t fittingROIsize = 0;
     std::array<double, 64> fittingResult = {};
     std::array<double, 64> fittingError = {};
+    std::array<double, 100> vBlock = {};
 
     //Status
     bool isRunning = false;

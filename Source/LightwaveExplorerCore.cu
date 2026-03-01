@@ -2551,6 +2551,9 @@ namespace hostFunctions{
 		}
 
 		double vBlock[100] = { 0.0 };
+		for (int k = 0; k < 100; k++) {
+			vBlock[k] = (*sCPU).vBlock[k];
+		}
 		std::string currentString((*sCPU).sequenceString);
 		simulationParameterSet backupSet = *sCPU;
 		//shortest command is for(), if there's only 4 characters left, it can only
@@ -2592,7 +2595,12 @@ namespace hostFunctions{
 			backupSet.optics = (*sCPU).optics;
 			*sCPU = backupSet;
 		}
+		std::array<double, 100> vBlockTemp;
+		for (int k = 0; k < 100; k++) {
+			vBlockTemp[k] = vBlock[k];
+		}
 		*sCPU = backupSet;
+		(*sCPU).vBlock = vBlockTemp;
 		return error;
 	}
 
@@ -2601,8 +2609,14 @@ namespace hostFunctions{
 		const dlib::matrix<double, 0, 1>& x){
 
 		double result = 0.0;
+		(*fittingSet).vBlock.fill(0.0);
 		for (int i = 0; i < (*fittingSet).Nfitting; ++i) {
-			(*fittingSet).setByNumberWithMultiplier((int64_t)(*fittingSet).fittingArray[3 * i], x(i));
+			int paramId = (int)round((*fittingSet).fittingArray[3 * i]);
+			if (paramId >= 100 && paramId < 200) {
+				(*fittingSet).vBlock[paramId - 100] = x(i);
+			} else {
+				(*fittingSet).setByNumberWithMultiplier((int64_t)paramId, x(i));
+			}
 		}
 
 		ActiveDevice& d = *dFit;
@@ -2616,6 +2630,10 @@ namespace hostFunctions{
 		}
 		else {
 			solveNonlinearWaveEquationWithDevice(d, fittingSet);
+		}
+
+		if ((*fittingSet).fittingMode == 5) {
+			return (*fittingSet).vBlock[0];
 		}
 
 		//maximize total spectrum in ROI
@@ -2695,7 +2713,12 @@ unsigned long runDlibFittingX(simulationParameterSet* sCPU) {
 	dlib::matrix<double, 0, 1> upperBounds;
 	upperBounds.set_size((*sCPU).Nfitting);
 	for (int i = 0; i < (*sCPU).Nfitting; ++i) {
-		parameters(i) = (*sCPU).getByNumber((int64_t)round((*sCPU).fittingArray[3 * i]));
+		int paramId = (int)round((*sCPU).fittingArray[3 * i]);
+		if (paramId >= 100 && paramId < 200) {
+			parameters(i) = (*sCPU).vBlock[paramId - 100];
+		} else {
+			parameters(i) = (*sCPU).getByNumber((int64_t)paramId);
+		}
 		lowerBounds(i) = (*sCPU).fittingArray[3 * i + 1];
 		upperBounds(i) = (*sCPU).fittingArray[3 * i + 2];
 	}
@@ -2717,7 +2740,12 @@ unsigned long runDlibFittingX(simulationParameterSet* sCPU) {
 	}
 
 	for (int i = 0; i < (*sCPU).Nfitting; ++i) {
-		(*sCPU).setByNumberWithMultiplier((int64_t)round((*sCPU).fittingArray[3 * i]), result.x(i));
+		int paramId = (int)round((*sCPU).fittingArray[3 * i]);
+		if (paramId >= 100 && paramId < 200) {
+			(*sCPU).vBlock[paramId - 100] = result.x(i);
+		} else {
+			(*sCPU).setByNumberWithMultiplier((int64_t)paramId, result.x(i));
+		}
 		(*sCPU).fittingResult[i] = result.x(i);
 	}
 

@@ -1327,14 +1327,12 @@ public:
             textBoxes["batchThreads"]->setFixedSize(textBoxWidth, textBoxHeight);
             textBoxes["batchThreads"]->setText("1");
             textBoxes["batchThreads"]->setToolTip(
-                "Maximum number of batch simulations to run in parallel.\n"
-                "Default is 1 (sequential execution, original behavior).\n"
-                "Higher values can speed up batch runs by overlapping\n"
-                "GPU compute and data transfer between simulations.\n"
-                "Recommended: 2-4 for a single GPU.");
+                "Number of batch simulations to run in parallel.\n"
+                "Default 1 (sequential). Recommended: 2-4 for single GPU.");
             batchThreadsLabel->setToolTip(textBoxes["batchThreads"]->toolTip());
             batchThreadsRow->addWidget(textBoxes["batchThreads"]);
         }
+
 
         QHBoxLayout* loadRow = getRowBoxLayout(entryColumn2Layout);
         buttons["load"] = new QPushButton("Load");
