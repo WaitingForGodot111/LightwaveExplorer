@@ -1,4 +1,4 @@
-name: Build Linux CLI
+name: Build MacOS CLI
 
 on:
   push:
@@ -11,16 +11,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
+        run: brew install cmake make libomp
+      - name: Compile CLI
         run: |
-          sudo apt-get install -y libfmt-dev libtbb-dev libfftw3-dev
-      - name: Compile Lightwave Explorer CLI
-        run: |
-          mkdir build
-          cd build
+          mkdir build && cd build
           cmake .. -DCLI=1
           cmake --build .
       - name: Test run
@@ -32,16 +30,16 @@ jobs:
       - name: Prepare distribution
         run: |
           mkdir dist
-          cp build/LightwaveExplorer dist/LightwaveExplorerLinuxCLI
+          cp build/LightwaveExplorer dist/LightwaveExplorerMacCLI
           cp CrystalDatabase.txt dist/
           cp Source/BuildResources/DefaultValues.ini dist/ || true
-      - name: Upload Linux CLI
+      - name: Upload Mac CLI
         uses: actions/upload-artifact@v4
         with:
-          name: LightwaveExplorer-CLI-Linux
+          name: LightwaveExplorer-CLI-Mac
           path: dist/
-      - name: Release Linux CLI
+      - name: Release Mac CLI
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/LightwaveExplorerLinuxCLI
+          files: dist/LightwaveExplorerMacCLI
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
