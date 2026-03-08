@@ -1,0 +1,62 @@
+name: Build Windows CLI
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build
+          cd build
+          # dlib
+          Invoke-WebRequest -Uri "https://github.com/davisking/dlib/archive/refs/tags/v19.24.6.zip" -OutFile "dlib.zip"
+          Expand-Archive -Path "dlib.zip" -DestinationPath "." -Force
+          Rename-Item -Path "dlib-19.24.6" -NewName "dlib" -ErrorAction SilentlyContinue
+          # gcem
+          Invoke-WebRequest -Uri "https://github.com/kthohr/gcem/archive/refs/tags/v1.18.0.zip" -OutFile "gcem.zip"
+          Expand-Archive -Path "gcem.zip" -DestinationPath "." -Force
+          Rename-Item -Path "gcem-1.18.0" -NewName "gcem" -ErrorAction SilentlyContinue
+          # miniz
+          Invoke-WebRequest -Uri "https://github.com/richgel999/miniz/releases/download/3.1.0/miniz-3.1.0.zip" -OutFile "miniz.zip"
+          Expand-Archive -Path "miniz.zip" -DestinationPath "miniz" -Force
+
+      - name: Configure and build CLI
+        shell: cmd
+        run: |
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A x64 -DCLI=1 -DCMAKE_CXX_FLAGS="/O2 /EHsc"
+          cmake --build . --config Release
+
+      - name: Prepare distribution
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "dist" -Force
+          Copy-Item "build\Release\LightwaveExplorer.exe" "dist\LightwaveExplorerWinCLI.exe"
+          Copy-Item "CrystalDatabase.txt" "dist\"
+          if (Test-Path "Source\BuildResources\DefaultValues.ini") {
+            Copy-Item "Source\BuildResources\DefaultValues.ini" "dist\"
+          }
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LightwaveExplorer-CLI-Win
+          path: dist/
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/LightwaveExplorerWinCLI.exe
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
