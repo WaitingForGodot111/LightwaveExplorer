@@ -55,21 +55,10 @@ jobs:
         with:
           path: build/Release
           name: LightwaveExplorerWin64_unsigned
-      - name: submit-signing-request
-        id: submit-signing-request
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: "${{ secrets.SIGNPATH_API_TOKEN }}"
-          organization-id: "783ed34a-91fc-4bc6-9142-da97f921e9ee"
-          project-slug: "LightwaveExplorer"
-          signing-policy-slug: "release-signing"
-          github-artifact-id: "${{ steps.upload-unsigned-artifact.outputs.artifact-id }}"
-          wait-for-completion: true
-          output-artifact-directory: "build/LightwaveExplorerWin64"
-        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
       - name: Final clean up and bundle
         run: |
           cd build
+          Rename-Item -Path "Release" -NewName "LightwaveExplorerWin64"
           cd LightwaveExplorerWin64
           Get-ChildItem -File -Filter *.dll | % { $_.Attributes = $_.Attributes -bor [IO.FileAttributes]::Hidden }
           cd ..
